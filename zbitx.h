@@ -223,3 +223,4 @@ extern struct saved block;
 bool block_read();
 void block_write();
 void block_dump();
+void send_text(const char *text);

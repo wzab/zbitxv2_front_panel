@@ -207,7 +207,7 @@ void command_tokenize(char c){
 
 // I2c routines
 // we separate out the updates with \n character
-void send_text(char *text){
+void send_text(const char *text){
 
 	if (!client.connected())
 		return;

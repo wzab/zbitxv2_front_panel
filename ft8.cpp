@@ -191,7 +191,7 @@ void ft8_draw(field *f){
 					color = TFT_ORANGE;
 					break;
 				case 'H':
-					color = TFT_DARKGREY;
+					color = TFT_LIGHTGREY;
 					break;
    	   case 'S':
     	    color = TFT_YELLOW;
@@ -231,7 +231,7 @@ void ft8_touched(int x_offset, int y_offset){
 	if (ft8_cursor >= FT8_MAX)
 		ft8_cursor -= FT8_MAX;
 	last_ft8_selected = millis();
-  struct field *single_tap = field_get("1-TAP-QSO");
+  struct field *single_tap = field_get("1T-FT8");
   if (single_tap && !strcmp(single_tap->value, "ON")) {
     ft8_select();
   }
