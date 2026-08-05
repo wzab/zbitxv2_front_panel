@@ -25,65 +25,77 @@ void ft8_init(){
 }
 
 void ft8_select(){
-	char *p, *q;
-	struct ft8_message *m = ft8_list + ft8_cursor;
+	const char *p;
+	size_t out = 0;
+	static const char prefix[] = "FT8 ";
 
-	if (strlen(m->data) >= sizeof(message_buffer))
+	if (ft8_cursor < 0 || ft8_cursor >= FT8_MAX)
+		return;
+	struct ft8_message *m = ft8_list + ft8_cursor;
+	if (m->id == 0)
 		return;
 
+	memcpy(message_buffer, prefix, sizeof(prefix) - 1);
+	out = sizeof(prefix) - 1;
 	p = m->data;
-	strcpy(message_buffer,"FT8 ");
-	q = message_buffer + strlen(message_buffer);
 	while (*p){
-		//skip the '#x'
+		// Skip the '#x' colour marker used only by the display.
 		if (*p == '#'){
 			p++;
 			if (*p)
 				p++;
 			continue;
 		}
-		*q++ = *p++;
+		// Reserve room for the final newline and NUL terminator.
+		if (out + 2 >= sizeof(message_buffer)){
+			Serial.println("FT8 selection is too long");
+			message_buffer[0] = '\0';
+			return;
+		}
+		message_buffer[out++] = *p++;
 	}
-	//close with a new line
-	*q++ = '\n';
-	*q = 0;
+	message_buffer[out++] = '\n';
+	message_buffer[out] = '\0';
 }
 
 void ft8_update(const char *msg){
   //#G121145  16 -16 1797 ~ #GDG5YPR #RIZ2FOS #SJN55
-  char buff[100], *p;
+  char buff[FT8_MAX_DATA], *p;
+	size_t msg_len = strlen(msg);
+	int signal_strength;
+	int frequency;
 
-	//Serial.printf("ft8: %s\n", msg);
-
-  struct ft8_message *m = ft8_list + ft8_next;
-  strcpy(buff, msg);
+	// The complete decorated line is stored in ft8_message::data, so validate
+	// its full length before copying it to either fixed-size buffer.
+	if (msg_len >= sizeof(buff)){
+		Serial.printf("dropping overlong FT8 line (%u bytes)\n", (unsigned)msg_len);
+		return;
+	}
+	memcpy(buff, msg, msg_len + 1);
 
   p = strtok(buff, " ");
-  if(!p)return;  
+  if(!p)return;
 
   p = strtok(NULL, " "); //skip the confidence score
   p = strtok(NULL, " ");
   if (!p) return;
-  m->signal_strength = atoi(p);
+  signal_strength = atoi(p);
 
   p = strtok(NULL, " ");
   if (!p) return;
-  m->frequency = atoi(p);
-  m->id = ft8_id++; 
-  
-  p = strchr(msg, '~');
-  if (!p)
+  frequency = atoi(p);
+
+  if (!strchr(msg, '~'))
     return;
 
-  p+= 2; //skip the tilde and the next space
-
-  if (strlen(p) >= FT8_MAX_DATA){
-    return;
-  }
-  strcpy(m->data, msg);  
+  struct ft8_message *m = ft8_list + ft8_next;
+	m->signal_strength = signal_strength;
+	m->frequency = frequency;
+	m->id = ft8_id++;
+	memcpy(m->data, msg, msg_len + 1);
   ft8_next++;
 	
-  if (ft8_next >= FT8_MAX)
+	if (ft8_next >= FT8_MAX)
 		ft8_next = 0;
 	if (ft8_next == ft8_cursor)
 		ft8_cursor = -1;
@@ -156,7 +168,7 @@ void ft8_draw(field *f){
     index += FT8_MAX;
 
   for (int i=0; i < count; i++){
-    char buff[100], *p;
+    char buff[FT8_MAX_DATA];
     int x = f->x+2;
 		if (ft8_list[index].id){
 			char slot = '0';
@@ -170,7 +182,15 @@ void ft8_draw(field *f){
 				slot = '3';
 			else
 				slot = '4';
-    	strcpy(buff+3, ft8_list[index].data + 12);
+			const char *display = ft8_list[index].data;
+			size_t data_len = strlen(display);
+			if (data_len > 12)
+				display += 12;
+			size_t display_len = strlen(display);
+			if (display_len > sizeof(buff) - 4)
+				display_len = sizeof(buff) - 4;
+			memcpy(buff + 3, display, display_len);
+			buff[3 + display_len] = '\0';
 			buff[0] = '#';
 			buff[1] = 'G';
 			buff[2] = slot;

@@ -94,16 +94,19 @@ int total = 0;
 //comannd tokenizer
 
 static char cmd_label[FIELD_TEXT_MAX_LENGTH];
-static char cmd_value[1000]; // this should be enough
+static char cmd_value[1000]; // accommodates waterfall and QSO update lines
+static size_t cmd_label_len = 0;
+static size_t cmd_value_len = 0;
 static bool cmd_in_label = true;
-static bool cmd_in_field = false;
+static bool cmd_discard_line = false;
 
 void command_init(){
-  cmd_label[0] = 0;
-  cmd_value[0] = 0;
-  //cmd_p = cmd_label;
-  cmd_in_label = false;
-  cmd_in_field = false;
+  cmd_label_len = 0;
+  cmd_value_len = 0;
+  cmd_label[0] = '\0';
+  cmd_value[0] = '\0';
+  cmd_in_label = true;
+  cmd_discard_line = false;
 }
 
 boolean in_tx(){
@@ -157,57 +160,71 @@ void set_bandwidth_strip(){
 }
 
 void reset_tokenizer(){
+	cmd_label_len = 0;
+	cmd_value_len = 0;
+	cmd_label[0] = '\0';
+	cmd_value[0] = '\0';
 	cmd_in_label = true;
-  cmd_in_field = true;
-	memset(cmd_label, 0, sizeof(cmd_label));
-	memset(cmd_value, 0, sizeof(cmd_value));
+	cmd_discard_line = false;
 }
-void command_tokenize(char c){
 
-  if (c == '\n'){
-		if (strlen(cmd_label)){
+void command_tokenize(char c){
+	// Accept both LF and CRLF streams without putting CR into a field value.
+	if (c == '\r')
+		return;
+
+	if (c == '\n'){
+		if (!cmd_discard_line && cmd_label_len > 0){
 			struct field *f = field_get(cmd_label);
-	
+
 			if (!f)  // some are not really fields but just updates, like QSO
-     		field_set(cmd_label, cmd_value, false);
-      else if (f->last_user_change + 1000 < now || f->type == FIELD_TEXT)
-     		field_set(cmd_label, cmd_value, false);
+				field_set(cmd_label, cmd_value, false);
+			else if (f->last_user_change + 1000 < now || f->type == FIELD_TEXT)
+				field_set(cmd_label, cmd_value, false);
 			else
 				Debug.printf("skipped %s= %s %uv:%u\n", cmd_label, cmd_value, f->last_user_change, now);
-			if (!strcmp(cmd_label, "HIGH") || !strcmp(cmd_label, "LOW") 
+
+			if (!strcmp(cmd_label, "HIGH") || !strcmp(cmd_label, "LOW")
 				|| !strcmp(cmd_label, "PITCH")
 				|| !strcmp(cmd_label, "SPAN") || !strcmp(cmd_label, "MODE"))
-				set_bandwidth_strip();	
-    }
+				set_bandwidth_strip();
+		}
 		reset_tokenizer();
-  }
-  else if (!cmd_in_field){ // only:0 handle characters between { and }
-		//Serial.println("\n\n\n\n****Reseting the tokenizer\n");
-		reset_tokenizer();
-	  return;
+		return;
 	}
-  else if (cmd_in_label){
-    //label is delimited by space
-    if (c != ' ' && strlen(cmd_label) < sizeof(cmd_label)-1){
-      int i = strlen(cmd_label);
-      cmd_label[i++] = c;
-      cmd_label[i]= 0;
-    }
-    else 
-      cmd_in_label = false;
-  }
-  else if (!cmd_in_label && strlen(cmd_value) < sizeof(cmd_value) -1 ){
-    int i = strlen(cmd_value);
-    cmd_value[i++] = c;
-    cmd_value[i] = 0;
-  }
-	else
-		reset_tokenizer();
+
+	// Once a line exceeds a buffer, discard the rest of that line. Resetting
+	// immediately would reinterpret its tail as a new command.
+	if (cmd_discard_line)
+		return;
+
+	if (cmd_in_label){
+		if (c == ' '){
+			cmd_in_label = false;
+			return;
+		}
+		if (cmd_label_len + 1 >= sizeof(cmd_label)){
+			Debug.println("dropping overlong command label");
+			cmd_discard_line = true;
+			return;
+		}
+		cmd_label[cmd_label_len++] = c;
+		cmd_label[cmd_label_len] = '\0';
+		return;
+	}
+
+	if (cmd_value_len + 1 >= sizeof(cmd_value)){
+		Debug.printf("dropping overlong value for %s\n", cmd_label);
+		cmd_discard_line = true;
+		return;
+	}
+	cmd_value[cmd_value_len++] = c;
+	cmd_value[cmd_value_len] = '\0';
 }
 
 // I2c routines
 // we separate out the updates with \n character
-void send_text(char *text){
+void send_text(const char *text){
 
 	if (!client.connected())
 		return;
@@ -544,17 +561,19 @@ void loop() {
 	}
 
 	netavailable = client.available();
-	bytes_to_read = sizeof(buff);
+	// Leave one byte for a diagnostic NUL terminator. readBytes() may return
+	// exactly the requested length.
+	bytes_to_read = sizeof(buff) - 1;
 
 	if (netavailable > 0){
 		if (bytes_to_read > netavailable)
 			bytes_to_read = netavailable;
 		int start = millis();
 		size_t actually_read = client.readBytes(buff, bytes_to_read);
-		buff[actually_read] = 0;
+		buff[actually_read] = '\0';
 		//Serial.printf("tokenizing<<<<<\n%s\n>>>>>>>\n", buff);
-		for (int i = 0; i < actually_read; i++)
-			command_tokenize(buff[i]);
+		for (size_t i = 0; i < actually_read; i++)
+			command_tokenize((char)buff[i]);
 		//Serial.printf("%d in %d\n", actually_read, millis() - start);
 	}
 

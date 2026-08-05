@@ -153,6 +153,11 @@ void field_set(const char *label, const char *value, bool update_to_radio){
 	else if (!strcmp(label, "QSO")){
 		f = field_get("LOGB");
 		logbook_update(value);
+		if (f)
+			f->redraw = true;
+		// The QSO record can be longer than field::value and is consumed by
+		// logbook_update(); do not copy it into the LOGB field buffer.
+		return;
 	}
   else 
     f = field_get(label);
@@ -203,11 +208,16 @@ void field_set(const char *label, const char *value, bool update_to_radio){
     //always 250 points
     waterfall_update(f, spectrum);
   }
-  //else if (strlen(value) < FIELD_TEXT_MAX_LENGTH - 1){
 	else {
-    if (!strcmp(label, "MODE"))
-      field_set_panel(value);
-    strcpy(f->value, value);
+		size_t value_len = strlen(value);
+		if (value_len >= sizeof(f->value)){
+			Serial.printf("#value for %s is too long (%u bytes)\n",
+				label, (unsigned)value_len);
+			return;
+		}
+		if (!strcmp(label, "MODE"))
+			field_set_panel(value);
+		memcpy(f->value, value, value_len + 1);
   }
   f->redraw = true;
 }

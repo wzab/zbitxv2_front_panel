@@ -47,12 +47,18 @@ struct logbook_entry *logbook_get(int qso_id){
 // ex update_str = "QSO 3|FT8|21074|2023-05-04|0639|VU2ESE|-16|MK97|LZ6DX|-11|KN23||"
 void logbook_update(const char *update_str){
   uint32_t qso_id, frequency;
-  char date_utc[11], time_utc[5], mode[10], my_callsign[10], rst_sent[10], 
-		rst_recv[10], exchange_sent[10], exchange_recv[10], contact_callsign[10],
+	unsigned long parsed_frequency;
+  char date_utc[11], time_utc[5], mode[10], my_callsign[16], rst_sent[10],
+		rst_recv[10], exchange_sent[10], exchange_recv[10], contact_callsign[16],
 		buff[200], *record;
+	size_t update_len = strlen(update_str);
 
 	Serial1.printf("log %s\n", update_str);
-	strcpy(buff, update_str);
+	if (update_len >= sizeof(buff)){
+		Serial.println("log record is too long");
+		return;
+	}
+	memcpy(buff, update_str, update_len + 1);
 	record = buff;
 	//read the QSO id  
 	char *p = strsep(&record, "|");
@@ -71,10 +77,12 @@ void logbook_update(const char *update_str){
 
 	//read the frequency
 	p = strsep(&record, "|");
-	frequency = atoi(p);
-	if (!p || frequency < 10 || frequency > 4000000000)
+	if (!p)
 		return;
-	frequency = atoi(p);
+	parsed_frequency = strtoul(p, NULL, 10);
+	if (parsed_frequency < 10 || parsed_frequency > 4000000000UL)
+		return;
+	frequency = (uint32_t)parsed_frequency;
 
 	//read the date
 	p = strsep(&record, "|");
@@ -89,7 +97,7 @@ void logbook_update(const char *update_str){
 	strcpy(time_utc, p);
 
 	p = strsep(&record, "|");
-	if (!p || strlen(p) < 4 || strlen(p) > 9)
+	if (!p || strlen(p) < 4 || strlen(p) >= sizeof(my_callsign))
 		return;
 	strcpy(my_callsign, p);
 	
@@ -107,7 +115,7 @@ void logbook_update(const char *update_str){
 		exchange_sent[0] = 0;
 
 	p = strsep(&record, "|");
-	if (!p || strlen(p) < 4 || strlen(p) > 9)
+	if (!p || strlen(p) < 4 || strlen(p) >= sizeof(contact_callsign))
 		return;
 	strcpy(contact_callsign, p);
 
