@@ -98,7 +98,7 @@ struct field main_list[] = {
 
 	// this will get over written by the keyboard 
   {FIELD_CONSOLE, 240, 120, 240, 152,  TFT_BLACK, "CONSOLE", "Hello!"},  
-  {FIELD_TEXT, 48,48, 96, 24, TFT_BLACK, "CALLSIGN", "", "0,10"},
+  {FIELD_TEXT, 48,48, 96, 24, TFT_BLACK, "CALLSIGN", "", "0,15"},
   {FIELD_TEXT, 240, 96, 240, 24,  TFT_BLACK, "TEXT", "", "0/40"},  
   {FIELD_NUMBER, 288, 272, 48, 48,  TFT_BLACK, "TX_PITCH", "2200", "300/3000/10"},
   {FIELD_SELECTION, 336, 272, 48, 48,  TFT_BLACK, "TX1ST", "ON", "ON/OFF"},
@@ -164,7 +164,7 @@ struct field main_list[] = {
 	/* settings */
 
   {FIELD_STATIC, 26,48, 96, 0, TFT_BLACK, "MY CALL", "MY CALL:", "0/10"},
-  {FIELD_TEXT, 24, 62, 96, 24, TFT_BLACK, "MYCALLSIGN", "", "0/10"},
+  {FIELD_TEXT, 24, 62, 96, 24, TFT_BLACK, "MYCALLSIGN", "", "0/15"},
   {FIELD_STATIC, 146,48, 96, 0, TFT_BLACK, "MY GRID", "MY GRID:", "0/10"},
   {FIELD_TEXT, 144, 62, 96, 24, TFT_BLACK, "MYGRID", "", "0/10"},
   {FIELD_STATIC, 266, 48, 96, 0, TFT_BLACK, "PASS KEY", "PASS KEY:", "0/10"},

@@ -142,7 +142,7 @@ struct logbook_entry {
   char time_utc[11]; //ex: 1305 hh:mm
   uint32_t frequency;
   char mode[10];
-  char callsign[10];
+  char callsign[16];
   char rst_sent[10];
   char rst_recv[10];
   char exchange_sent[10];
